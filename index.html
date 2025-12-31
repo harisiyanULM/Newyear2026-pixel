@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Happy New Year 2026</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: none;
+            cursor: pointer; /* Memberi hint bahwa layar bisa diklik */
+        }
+        canvas {
+            display: block;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            z-index: 10;
+            width: 100%;
+        }
+        h1 {
+            font-size: 2rem;
+            text-shadow: 4px 4px 0px #333;
+            line-height: 1.6;
+            animation: pulse 2s infinite;
+        }
+        /* Hint kecil agar user tahu perlu tap layar untuk suara */
+        #hint-text {
+            font-size: 0.6rem;
+            margin-top: 20px;
+            opacity: 0.5;
+            font-family: sans-serif;
+            animation: fadeOut 5s forwards; /* Hilang sendiri setelah 5 detik */
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); text-shadow: 4px 4px 0px #333; }
+            50% { transform: scale(1.05); text-shadow: 6px 6px 0px #ff0055; }
+            100% { transform: scale(1); text-shadow: 4px 4px 0px #333; }
+        }
+        @keyframes fadeOut {
+            0% { opacity: 0.5; }
+            80% { opacity: 0.5; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1 id="year-text">HAPPY<br>NEW YEAR<br><span style="color:#00ffcc; font-size: 1.2em;">2026</span></h1>
+        <div id="hint-text">TAP SCREEN FOR SOUND</div>
+    </div>
+
+    <canvas id="pixelCanvas"></canvas>
+
+<script>
+/**
+ * PIXEL ENGINE v3.0 (Audio Enabled)
+ * Features: Web Audio API implementation for procedural sound fx.
+ */
+
+const canvas = document.getElementById('pixelCanvas');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+let fireworks = [];
+let particles = [];
+const PIXEL_SIZE = 4; 
+const GRAVITY = 0.08;
+const FRICTION = 0.96;
+
+// --- AUDIO ENGINE START ---
+// Menggunakan AudioContext untuk generate suara tanpa file eksternal
+let audioCtx;
+let isAudioEnabled = false;
+
+function initAudio() {
+    if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        isAudioEnabled = true;
+        
+        // Buat Buffer Noise sekali saja untuk efisiensi
+        const bufferSize = audioCtx.sampleRate * 2; // 2 detik buffer
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1; // White noise
+        }
+        window.noiseBuffer = buffer;
+    }
+    // Resume context jika ter-suspend (policy browser)
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playExplosionSound() {
+    if (!isAudioEnabled || !audioCtx) return;
+
+    const t = audioCtx.currentTime;
+    
+    // 1. Source: White Noise
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = window.noiseBuffer;
+    
+    // 2. Filter: Lowpass untuk memberi kesan "Boom" bukan "Hiss"
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1000, t);
+    filter.frequency.exponentialRampToValueAtTime(100, t + 0.2); // Suara menurun
+
+    // 3. Gain: Envelope (Volume mengecil)
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+    // Connect graph
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    noise.start(t);
+    noise.stop(t + 0.4);
+}
+
+function playLaunchSound() {
+    // Suara "Wiuuu" saat meluncur (opsional, dibuat pelan)
+    if (!isAudioEnabled || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.frequency.setValueAtTime(200, t);
+    osc.frequency.exponentialRampToValueAtTime(600, t + 0.5); // Naik frekuensinya
+    
+    gain.gain.setValueAtTime(0.05, t); // Volume sangat kecil
+    gain.gain.linearRampToValueAtTime(0, t + 0.5);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.5);
+}
+
+// User Interaction Handler (Wajib untuk Audio di Web)
+document.addEventListener('click', () => {
+    initAudio();
+    document.getElementById('hint-text').style.display = 'none'; // Sembunyikan hint
+});
+document.addEventListener('touchstart', () => {
+    initAudio();
+    document.getElementById('hint-text').style.display = 'none';
+}, {passive: true});
+// --- AUDIO ENGINE END ---
+
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const random = (min, max) => Math.random() * (max - min) + min;
+const getRandomColor = () => {
+    const colors = ['#FF0055', '#00FFCC', '#FFFF00', '#CC00FF', '#00FF00', '#FFFFFF'];
+    return colors[Math.floor(Math.random() * colors.length)];
+};
+
+class Firework {
+    constructor() {
+        this.x = random(width * 0.1, width * 0.9);
+        this.y = height;
+        this.targetY = random(height * 0.1, height * 0.5); 
+        this.speed = random(9, 14); 
+        this.color = getRandomColor();
+        this.trail = [];
+        this.dead = false;
+        
+        // Mainkan suara peluncuran
+        playLaunchSound();
+    }
+    update() {
+        this.trail.push({x: this.x, y: this.y});
+        if (this.trail.length > 5) this.trail.shift();
+        this.y -= this.speed;
+        this.speed *= 0.98;
+        if (this.y <= this.targetY || this.speed < 1) {
+            this.dead = true;
+            this.explode();
+        }
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, PIXEL_SIZE, PIXEL_SIZE * 2);
+        this.trail.forEach((pos, index) => {
+            ctx.globalAlpha = index / 5;
+            ctx.fillRect(pos.x, pos.y, PIXEL_SIZE, PIXEL_SIZE * 2);
+        });
+        ctx.globalAlpha = 1;
+    }
+    explode() {
+        // Mainkan suara ledakan
+        playExplosionSound();
+        
+        const particleCount = 60; 
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle(this.x, this.y, this.color));
+        }
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        const angle = random(0, Math.PI * 2);
+        const velocity = random(1, 6);
+        this.vx = Math.cos(angle) * velocity;
+        this.vy = Math.sin(angle) * velocity;
+        this.alpha = 1;
+        this.decay = random(0.015, 0.03); 
+    }
+    update() {
+        this.vx *= FRICTION;
+        this.vy *= FRICTION;
+        this.vy += GRAVITY;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha -= this.decay;
+    }
+    draw() {
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, PIXEL_SIZE, PIXEL_SIZE);
+        ctx.globalAlpha = 1;
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.25)'; 
+    ctx.fillRect(0, 0, width, height);
+
+    if (Math.random() < 0.05) fireworks.push(new Firework());
+
+    fireworks.forEach((fw, index) => {
+        fw.update(); fw.draw();
+        if (fw.dead) fireworks.splice(index, 1);
+    });
+
+    particles.forEach((p, index) => {
+        p.update(); p.draw();
+        if (p.alpha <= 0) particles.splice(index, 1);
+    });
+}
+animate();
+
+</script>
+</body>
+</html>
