@@ -13,7 +13,7 @@
             font-family: 'Press Start 2P', cursive;
             touch-action: none;
             cursor: pointer;
-            -webkit-tap-highlight-color: transparent; /* Hilangkan highlight biru di Android */
+            -webkit-tap-highlight-color: transparent;
         }
         canvas {
             display: block;
@@ -67,11 +67,9 @@
 
 <script>
 /**
- * PIXEL ENGINE v4.0 (Pro Audio Edition)
- * Changelog:
- * - Removed UI buttons completely.
- * - Added Layered Audio Synthesis (Crack + Boom).
- * - Improved Synchronization.
+ * PIXEL ENGINE v5.0 (Final Realistic)
+ * - Realistic Launch Sound (Hissing/Air Friction)
+ * - Realistic Explosion (Crack + Boom)
  */
 
 const canvas = document.getElementById('pixelCanvas');
@@ -80,7 +78,7 @@ const ctx = canvas.getContext('2d');
 let width, height;
 let fireworks = [];
 let particles = [];
-const PIXEL_SIZE = 4; // Ukuran pixel diperbesar sedikit agar visual lebih jelas
+const PIXEL_SIZE = 4;
 const GRAVITY = 0.08;
 const FRICTION = 0.96;
 
@@ -96,36 +94,36 @@ function initAudio() {
     audioCtx = new AudioContext();
     isAudioEnabled = true;
 
-    // 1. Buat Noise Buffer (Sekali saja di awal untuk performa)
+    // Buffer Noise (Satu sumber untuk semua efek suara)
     const bufferSize = audioCtx.sampleRate * 2; 
     noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
+    let lastOut = 0;
     for (let i = 0; i < bufferSize; i++) {
-        // Pink Noise simulation (lebih ngebass daripada White Noise)
+        // Pink Noise Generator (Lebih natural daripada White Noise)
         const white = Math.random() * 2 - 1;
         data[i] = (lastOut + (0.02 * white)) / 1.02;
         lastOut = data[i];
-        data[i] *= 3.5; // Gain up
+        data[i] *= 3.5; 
     }
 }
-let lastOut = 0;
 
-// Fungsi Suara Ledakan (Layered)
+// 1. Suara Ledakan (Duar!)
 function playExplosionSound() {
     if (!isAudioEnabled || !audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const t = audioCtx.currentTime;
 
-    // LAYER 1: The "CRACK" (High Frequency Snap) - Suara pletok
+    // Layer 1: "CRACK" (Pletok tajam di awal)
     const crackSrc = audioCtx.createBufferSource();
     crackSrc.buffer = noiseBuffer;
     const crackFilter = audioCtx.createBiquadFilter();
     crackFilter.type = 'highpass';
-    crackFilter.frequency.value = 1000; // Hanya ambil treble
+    crackFilter.frequency.value = 1000; 
     const crackGain = audioCtx.createGain();
     crackGain.gain.setValueAtTime(0.5, t);
-    crackGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1); // Cepat hilang
+    crackGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1); 
 
     crackSrc.connect(crackFilter);
     crackFilter.connect(crackGain);
@@ -133,51 +131,60 @@ function playExplosionSound() {
     crackSrc.start(t);
     crackSrc.stop(t + 0.15);
 
-    // LAYER 2: The "BOOM" (Low Frequency Rumble) - Suara dentuman
+    // Layer 2: "BOOM" (Gema bass)
     const boomSrc = audioCtx.createBufferSource();
     boomSrc.buffer = noiseBuffer;
     const boomFilter = audioCtx.createBiquadFilter();
     boomFilter.type = 'lowpass';
-    boomFilter.frequency.setValueAtTime(200, t); // Mulai agak tinggi
-    boomFilter.frequency.exponentialRampToValueAtTime(50, t + 0.5); // Turun ke bass dalam
+    boomFilter.frequency.setValueAtTime(200, t);
+    boomFilter.frequency.exponentialRampToValueAtTime(50, t + 0.5); 
     const boomGain = audioCtx.createGain();
-    boomGain.gain.setValueAtTime(1, t); // Volume besar di awal
-    boomGain.gain.exponentialRampToValueAtTime(0.01, t + 0.8); // Ekor panjang
+    boomGain.gain.setValueAtTime(1, t);
+    boomGain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
 
     boomSrc.connect(boomFilter);
     boomFilter.connect(boomGain);
     boomGain.connect(audioCtx.destination);
     
-    // Random detune agar suara tidak monoton
+    // Variasi Pitch agar tidak monoton
     boomSrc.playbackRate.value = 0.8 + Math.random() * 0.4;
     
     boomSrc.start(t);
     boomSrc.stop(t + 0.8);
 }
 
-// Fungsi Suara Luncuran (Rocket Whistle)
+// 2. Suara Luncuran (Sshhh-Fyuu) - OPSI 2 DIPILIH
 function playLaunchSound() {
     if (!isAudioEnabled || !audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
+    
+    // Menggunakan Noise Buffer yang sama
+    const source = audioCtx.createBufferSource();
+    source.buffer = noiseBuffer;
+
+    // Filter Bandpass: Fokus di frekuensi tengah (seperti angin mendesis)
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, t);
+    // Efek Doppler: Frekuensi naik lalu turun sedikit saat menjauh ke langit
+    filter.frequency.linearRampToValueAtTime(1500, t + 0.5);
+
     const gain = audioCtx.createGain();
+    // Volume tidak terlalu keras agar elegan
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
 
-    // Frequency slide up (Wiuuuu)
-    osc.frequency.setValueAtTime(150, t);
-    osc.frequency.exponentialRampToValueAtTime(600, t + 0.6);
-
-    gain.gain.setValueAtTime(0.1, t);
-    gain.gain.linearRampToValueAtTime(0, t + 0.6);
-
-    osc.connect(gain);
+    source.connect(filter);
+    filter.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + 0.6);
+    
+    source.start(t);
+    source.stop(t + 0.6);
 }
 
-// Handler Interaksi User (Wajib)
+// Handler Interaksi User
 const handleInteraction = () => {
     initAudio();
     const hint = document.getElementById('hint-text');
@@ -209,12 +216,12 @@ class Firework {
         this.x = random(width * 0.1, width * 0.9);
         this.y = height;
         this.targetY = random(height * 0.1, height * 0.4); 
-        this.speed = random(10, 15); // Sedikit dipercepat
+        this.speed = random(10, 15);
         this.color = getRandomColor();
         this.trail = [];
         this.dead = false;
         
-        // Audio dipanggil SAAT objek dibuat (Luncuran)
+        // Panggil suara luncuran (Desis Roket)
         playLaunchSound();
     }
     update() {
@@ -222,9 +229,8 @@ class Firework {
         if (this.trail.length > 4) this.trail.shift();
         
         this.y -= this.speed;
-        this.speed *= 0.97; // Gesekan udara
+        this.speed *= 0.97; 
 
-        // Jika sampai target atau kecepatan habis
         if (this.y <= this.targetY || this.speed < 1.5) {
             this.dead = true;
             this.explode();
@@ -240,11 +246,10 @@ class Firework {
         ctx.globalAlpha = 1;
     }
     explode() {
-        // AUDIO PRIORITY: Panggil suara DULUAN sebelum kalkulasi partikel
-        // Ini memastikan otak kita mendengar "Duar" bersamaan dengan mata melihat pecahnya.
+        // Panggil suara ledakan (Duar!)
         playExplosionSound(); 
 
-        const particleCount = 70; // Lebih banyak partikel
+        const particleCount = 70;
         for (let i = 0; i < particleCount; i++) {
             particles.push(new Particle(this.x, this.y, this.color));
         }
@@ -256,9 +261,7 @@ class Particle {
         this.x = x;
         this.y = y;
         this.color = color;
-        // Ledakan melingkar sempurna
         const angle = random(0, Math.PI * 2);
-        // Variasi kecepatan agar ledakan bervolume
         const velocity = random(2, 8); 
         
         this.vx = Math.cos(angle) * velocity;
@@ -286,14 +289,11 @@ class Particle {
 function animate() {
     requestAnimationFrame(animate);
     
-    // Trail effect (After image)
     ctx.fillStyle = 'rgba(5, 5, 5, 0.25)'; 
     ctx.fillRect(0, 0, width, height);
 
-    // Spawn Logic
     if (Math.random() < 0.04) fireworks.push(new Firework());
 
-    // Update Loops
     for (let i = fireworks.length - 1; i >= 0; i--) {
         fireworks[i].update();
         fireworks[i].draw();
